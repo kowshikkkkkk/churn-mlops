@@ -1,0 +1,26 @@
+# Data
+data/raw/
+data/processed/
+
+# Models & MLflow
+models/
+mlruns/
+mlflow.db
+
+# Reports (drift HTML, generated)
+reports/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+env/
+*.egg-info/
+
+# Env & secrets
+.env
+
+# Editor
+.vscode/
+.idea/
