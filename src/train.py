@@ -267,11 +267,17 @@ if __name__ == "__main__":
     )
 
     # ── Contender 3: XGBoost (boosting ensemble) ──
+    # n_jobs=1 is deliberate, not a performance oversight: XGBoost's
+    # default multi-threaded training can produce slightly different
+    # results run-to-run even with random_state fixed, because
+    # floating-point summation order depends on thread scheduling.
+    # Single-threaded execution removes that non-determinism source,
+    # which matters for genuinely reproducible training.
     train_and_log_model(
         model=XGBClassifier(
             n_estimators=200, max_depth=5, learning_rate=0.1,
             scale_pos_weight=scale_pos_weight, random_state=RANDOM_STATE,
-            eval_metric='logloss'),
+            eval_metric='logloss', n_jobs=1),
         params={'model_type': 'XGBoost', 'n_estimators': 200, 'max_depth': 5,
                 'learning_rate': 0.1, 'scale_pos_weight': round(scale_pos_weight, 3)},
         model_name='XGBoost',
