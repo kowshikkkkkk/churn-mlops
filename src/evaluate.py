@@ -283,11 +283,16 @@ def run_governance_checks(metrics: dict) -> bool:
 # 7. MAIN
 # ============================================================
 
-if __name__ == "__main__":
+def run_evaluation_pipeline() -> bool:
+    """
+    Full evaluation orchestration: rebuild the split, tune
+    thresholds on validation, pick a winner, independently
+    re-evaluate on test, run governance checks, save the
+    approval record if passed.
 
-    # Rebuild the exact same train/val/test split (same RANDOM_STATE
-    # in train.py guarantees this is identical to what training used —
-    # X_train is never touched here, only X_val and X_test)
+    Returns True if a model was approved, False otherwise —
+    so retrain.py can check this before calling register.py.
+    """
     df = build_dataset()
     X_train, X_val, X_test, y_train, y_val, y_test = split_data(df)
 
@@ -310,3 +315,9 @@ if __name__ == "__main__":
         print("   register.py will use this to promote the model in MLflow.")
     else:
         print("\n❌ No model approved — improve performance before deployment.")
+
+    return approved
+
+
+if __name__ == "__main__":
+    run_evaluation_pipeline()

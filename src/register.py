@@ -129,8 +129,16 @@ def promote_to_production(version: str) -> None:
     print(f"   Serving code loads: models:/{MODEL_NAME}@{PRODUCTION_ALIAS}")
 
 
-if __name__ == "__main__":
+def run_registration_pipeline():
+    """
+    Full registration orchestration: read the approval record,
+    register the model, attach metadata tags, promote via alias.
 
+    Raises FileNotFoundError if no approval record exists (i.e.
+    evaluate.py hasn't approved a model) — callers like retrain.py
+    should only invoke this after confirming run_evaluation_pipeline()
+    returned True.
+    """
     print("=" * 50)
     print("MODEL REGISTRATION")
     print("=" * 50)
@@ -150,3 +158,9 @@ if __name__ == "__main__":
     print(f"Threshold     : {record['threshold']}")
     print(f"Test recall   : {record['test_metrics']['recall']}")
     print(f"Test precision: {record['test_metrics']['precision']}")
+
+    return registered_version
+
+
+if __name__ == "__main__":
+    run_registration_pipeline()

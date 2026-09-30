@@ -213,8 +213,16 @@ def train_and_log_model(model, params, model_name,
 # 6. MAIN — build data, split, preprocess, train 3 contenders
 # ============================================================
 
-if __name__ == "__main__":
+def run_training_pipeline():
+    """
+    Full training orchestration: build data, split, preprocess,
+    train all 3 contenders, log to MLflow.
 
+    Wrapped as a proper function (not just __main__ script logic)
+    so retrain.py can call this directly instead of shelling out
+    to `python src/train.py` as a subprocess — same code, callable
+    from either place.
+    """
     print("=" * 50)
     print("TRAINING PIPELINE")
     print("=" * 50)
@@ -288,3 +296,7 @@ if __name__ == "__main__":
 
     print("\n✅ All 3 contenders trained and logged to MLflow.")
     print("Run 'mlflow ui' to compare them in the browser.")
+
+
+if __name__ == "__main__":
+    run_training_pipeline()
