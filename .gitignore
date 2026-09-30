@@ -1,6 +1,8 @@
 # Data
-data/raw/
-data/processed/
+data/raw/*
+!data/raw/*.dvc
+data/processed/*
+!data/processed/*.dvc
 
 # Models & MLflow
 models/
