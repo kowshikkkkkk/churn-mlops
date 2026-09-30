@@ -122,8 +122,8 @@ def build_preprocessor(X_train: pd.DataFrame) -> ColumnTransformer:
     are 0) — same effect as the old project's pd.get_dummies(drop_first=True),
     but as a persisted, reusable object instead of hand-derived logic.
     """
-    categorical_cols = X_train.select_dtypes(include='object').columns.tolist()
-    numeric_cols = X_train.select_dtypes(exclude='object').columns.tolist()
+    categorical_cols = X_train.select_dtypes(include=['object', 'str']).columns.tolist()
+    numeric_cols = X_train.select_dtypes(exclude=['object', 'str']).columns.tolist()
 
     print(f"✅ Preprocessor: {len(categorical_cols)} categorical columns, "
           f"{len(numeric_cols)} numeric columns")
