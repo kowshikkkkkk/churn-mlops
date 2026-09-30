@@ -1,4 +1,4 @@
-    # ============================================================
+# ============================================================
 # STAGE: TESTING
 # tests/test_pipeline.py
 #
@@ -517,4 +517,37 @@ def test_deterministic_inference(production_bundle, featured_df):
     assert np.array_equal(probabilities_run_1, probabilities_run_2), (
         "Same input produced different probabilities across two inference calls — "
         "inference is not deterministic."
+    )
+
+
+def test_drift_detection_uses_share_not_count(featured_df):
+    """
+    REGRESSION TEST for a real bug: an earlier version of
+    monitor.py's parsing logic checked "did ANY column drift"
+    (value.count > 0) instead of "did the SHARE of drifted
+    columns cross the configured threshold" (value.share >
+    config.drift_share). This caused a false positive — 4 of 21
+    columns drifting (19% share, below the 50% threshold) was
+    incorrectly reported as dataset-level drift, when Evidently's
+    own report clearly showed drift was NOT detected.
+
+    This test locks in the fix: with a MILD perturbation (fewer
+    columns changed, small enough that share stays below 0.5),
+    run_drift_report() must return False — matching what a human
+    reading the HTML report would conclude, not just "something,
+    somewhere, changed a little."
+    """
+    from monitor import run_drift_report
+
+    # Perturb only ONE column slightly — should clearly stay
+    # below the 50% dataset-level drift_share threshold.
+    mild_current = featured_df.copy()
+    mild_current['Monthly Charges'] = mild_current['Monthly Charges'] * 1.05
+
+    drift_detected = run_drift_report(reference_df=featured_df, current_df=mild_current)
+
+    assert drift_detected == False, (
+        "A single mildly-perturbed column triggered dataset-level drift — "
+        "the share-vs-threshold comparison may have regressed back to a "
+        "naive 'any column changed' check."
     )
