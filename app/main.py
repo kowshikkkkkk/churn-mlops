@@ -1,23 +1,6 @@
 # ============================================================
 # STAGE 8: SERVING
 # app/main.py
-#
-# Three fixes from the original project's postmortem, all
-# proven here:
-#
-# 1. ALIAS-BASED LOADING — loads "models:/churn-classifier@production",
-#    never a hardcoded version number. Whatever register.py most
-#    recently promoted is what gets served, automatically.
-#
-# 2. SHARED PREPROCESSOR — downloads and loads the EXACT fitted
-#    ColumnTransformer from the winning training run, instead of
-#    hand-rewriting one-hot encoding logic in this file. Same
-#    object, same transformation, every time.
-#
-# 3. SERVER-SIDE FEATURE ENGINEERING — calls the real
-#    engineer_features() from src/feature_engineering.py on raw
-#    input, rather than asking the API caller to pre-compute
-#    avg_monthly_spend / senior_long_tenure themselves.
 # ============================================================
 
 import sys
@@ -30,6 +13,7 @@ import mlflow.sklearn
 from mlflow.tracking import MlflowClient
 import pandas as pd
 import joblib
+import traceback
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -45,13 +29,6 @@ app = FastAPI(
     version="2.0.0"
 )
 
-
-# ============================================================
-# LOAD PRODUCTION MODEL BUNDLE AT STARTUP
-# Resolves the @production alias to a specific version, then
-# pulls that version's model, matching preprocessor, and tuned
-# decision threshold — all three from the SAME training run.
-# ============================================================
 
 def load_production_bundle():
     """
@@ -87,7 +64,11 @@ def load_production_bundle():
         }
 
     except Exception as e:
+        # DEBUG: full traceback, not just str(e) — we need to see exactly
+        # which call inside this try block is failing and why.
         print(f"❌ Failed to load production bundle: {e}")
+        print("Full traceback:")
+        traceback.print_exc()
         return {
             'model': None, 'preprocessor': None, 'threshold': 0.5,
             'version': 'none', 'model_type': 'none',
@@ -97,23 +78,7 @@ def load_production_bundle():
 bundle = load_production_bundle()
 
 
-# ============================================================
-# BUILD FEATURES FROM RAW CUSTOMER INPUT
-#
-# This function's whole job is to turn the API's raw input
-# fields into the SAME shape of dataframe that
-# preprocessing.clean_data() produces from the raw dataset —
-# so engineer_features() (imported directly from src, not
-# reimplemented here) can be called identically to how
-# train.py calls it.
-# ============================================================
-
 def build_customer_dataframe(customer: CustomerInput) -> pd.DataFrame:
-    """
-    Map API field names -> the internal column names/format
-    clean_data() produces, so engineer_features() and the
-    preprocessor both see exactly the shape they expect.
-    """
     row = {
         'Gender': customer.Gender,
         'Senior Citizen': customer.SeniorCitizen,
@@ -147,10 +112,6 @@ def get_risk_level(probability: float):
         return "Low", "No action needed"
 
 
-# ============================================================
-# ENDPOINTS
-# ============================================================
-
 @app.get("/")
 def root():
     return {"message": "Churn Prediction API is running", "status": "healthy"}
@@ -175,22 +136,11 @@ def predict(customer: CustomerInput):
         raise HTTPException(status_code=503, detail="Model not loaded — check /health")
 
     try:
-        # Raw input -> same shape clean_data() produces
         df = build_customer_dataframe(customer)
-
-        # SAME function training used — no reimplemented formulas here
         df = engineer_features(df)
-
-        # SAME fitted transformer training used — no hand-written encoding here
         X_transformed = bundle['preprocessor'].transform(df)
-
         probability = float(bundle['model'].predict_proba(X_transformed)[:, 1][0])
-
-        # Use the TUNED threshold from evaluate.py, not a naive 0.5 default —
-        # this is the whole point of having threshold-tuned for recall in
-        # the first place. model.predict() would silently ignore that work.
         prediction = int(probability >= bundle['threshold'])
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
 

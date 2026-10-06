@@ -36,7 +36,13 @@ from preprocessing import clean_data, LEAKAGE_COLUMNS, NO_SIGNAL_COLUMNS
 from feature_engineering import engineer_features
 from train import split_data, build_preprocessor
 
-RAW_PATH = "data/raw/Telco_customer_churn.xlsx"
+# Locally this points at the real DVC-tracked xlsx. In CI, the
+# workflow sets TEST_RAW_DATA_PATH to a committed CSV copy of the
+# SAME full dataset (tests/fixtures/churn_data_ci.csv) — CI runners
+# can't reach the local DVC remote, but a reduced/sampled file would
+# break the exact-shape and churn-ratio assertions below, so the
+# CI fixture is the complete dataset, just in a different format.
+RAW_PATH = os.environ.get("TEST_RAW_DATA_PATH", "data/raw/Telco_customer_churn.xlsx")
 
 
 # ============================================================

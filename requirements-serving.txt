@@ -1,0 +1,27 @@
+# ============================================================
+# requirements-serving.txt
+#
+# Slim dependency set for the DOCKER IMAGE only — what
+# app/main.py and everything it imports actually needs at
+# runtime. Deliberately excludes pytest, evidently, dvc —
+# those are development/pipeline tools, never imported by the
+# serving code, and including them would bloat the image and
+# widen its attack surface for zero benefit.
+#
+# For the full development environment (running the whole
+# pipeline, tests, drift monitoring), use requirements.txt
+# instead.
+# ============================================================
+
+fastapi==0.134.0
+uvicorn==0.41.0
+pydantic==2.12.5
+python-multipart==0.0.32
+
+mlflow==3.16.1
+scikit-learn==1.9.1
+xgboost==3.2.0
+
+pandas==3.0.6
+numpy==2.4.6
+joblib==1.6.0

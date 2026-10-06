@@ -1,0 +1,71 @@
+# ============================================================
+# docker-compose.yml
+#
+# Two services:
+#   mlflow  - the tracking server, with real filesystem access
+#             to mlflow.db and mlruns/ (via volumes)
+#   api     - the FastAPI serving app, talking to `mlflow` over
+#             HTTP via Compose's internal service networking
+#             (reachable simply as http://mlflow:5000)
+#
+# ARTIFACT STORAGE — PROXIED MODE (the actual fix):
+#
+# The mlflow server is launched with:
+#   --default-artifact-root mlflow-artifacts:/
+#   --artifacts-destination /mlflow/mlruns
+#
+# This is different from just pointing --default-artifact-root at
+# a local path. With a raw local path, MLflow records experiments'
+# artifact locations as plain filesystem paths — and any client
+# (train.py on the Windows host, the api container, anything)
+# that resolves a "models:/..." or "runs:/..." URI will try to
+# read/write that path DIRECTLY off its own filesystem, bypassing
+# the server over HTTP entirely. That silently failed here: the
+# host process has no access to /mlflow/mlruns (that's a path
+# inside the mlflow container), so uploads during training went
+# nowhere, while run/metric/param metadata (which always goes over
+# HTTP) looked completely fine — hence the confusing "registry
+# says the model exists but the files are nowhere" split.
+#
+# With `mlflow-artifacts:/` as the default root, every new
+# experiment's artifacts are recorded with that proxy scheme, so
+# ANY client — host venv, api container, anything — uploads and
+# downloads artifact BYTES over HTTP via the server's dedicated
+# /api/2.0/mlflow-artifacts/... endpoint. `--artifacts-destination`
+# tells the SERVER (and only the server) where to actually store
+# those bytes on its own disk. No client ever needs filesystem
+# access to mlruns/ again — including the api container, which no
+# longer needs the volume mount it had before.
+# ============================================================
+
+services:
+  mlflow:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    working_dir: /mlflow
+    volumes:
+      - ./mlflow.db:/mlflow/mlflow.db
+      - ./mlruns:/mlflow/mlruns
+    ports:
+      - "5000:5000"
+    command: >
+      mlflow server --backend-store-uri sqlite:///mlflow.db --default-artifact-root mlflow-artifacts:/ --artifacts-destination /mlflow/mlruns --serve-artifacts --host 0.0.0.0 --port 5000 --allowed-hosts mlflow:5000,localhost:*
+    healthcheck:
+      test: [ "CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000')" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    depends_on:
+      mlflow:
+        condition: service_healthy
